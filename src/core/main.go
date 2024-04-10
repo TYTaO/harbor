@@ -142,6 +142,7 @@ func main() {
 	}
 
 	log.Info("initializing cache ...")
+	log.Info("... yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy ...")
 	// the harbor db used for harbor business, use core db if not specified
 	redisHarborURL := os.Getenv("_REDIS_URL_HARBOR")
 	if redisHarborURL == "" {
