@@ -405,6 +405,7 @@
    "REPOSITORY": "Repository",
    "ARTIFACT": "Artifact",
    "SCAN": "Scan",
+   "SBOM": "SBOM",
    "TAG": "Tag",
    "ACCESSORY": "Accessory",
    "ARTIFACT_ADDITION": "Artifact Addition",
@@ -801,6 +802,7 @@
     "LABELS": "標籤",
     "ADD_LABEL_TO_IMAGE": "新增標籤到此映像檔",
     "ADD_LABELS": "新增標籤",
+    "STOP": "Stop",
     "RETAG": "複製",
     "FILTER_BY_LABEL": "篩選標籤",
     "FILTER_ARTIFACT_BY_LABEL": "透過標籤篩選 Artifact",
@@ -1045,19 +1047,20 @@
         "FOOT_OF": "of"
     },
     "STATE": {
-        "OTHER_STATUS": "Not Generated",
+        "OTHER_STATUS": "No SBOM",
         "QUEUED": "Queued",
         "ERROR": "View Log",
         "SCANNING": "Generating",
-        "STOPPED": "SBOM scan stopped"
+        "STOPPED": "Generation stopped"
     },
     "NO_SBOM": "No SBOM",
     "PACKAGES": "SBOM",
+    "COMPLETED": "Completed",
     "REPORTED_BY": "Reported by {{scanner}}",
-    "GENERATE": "Create SBOM",
+    "GENERATE": "Generate SBOM",
     "DOWNLOAD": "Download SBOM",
     "Details": "SBOM details",
-    "STOP": "Stop SBOM",
+    "STOP": "Stop Generate SBOM",
     "TRIGGER_STOP_SUCCESS": "Trigger stopping SBOM generation successfully"
 },
   "VULNERABILITY": {
@@ -1109,7 +1112,7 @@
     "REPORTED_BY": "由 {{scanner}} 報告",
     "NO_SCANNER": "無掃描器",
     "TRIGGER_STOP_SUCCESS": "成功觸發停止掃描",
-    "STOP_NOW": "立即停止掃描"
+    "STOP_NOW": "Stop Scan Vulnerability"
   },
   "PUSH_IMAGE": {
     "TITLE": "推送命令",
@@ -1497,9 +1500,10 @@
     "NAME_COLON": "名稱：",
     "VENDOR_COLON": "供應商：",
     "VERSION_COLON": "版本：",
-    "CAPABILITIES": "功能",
+    "CAPABILITIES": "功能:",
     "CONSUMES_MIME_TYPES_COLON": "可處理的 MIME 類型：",
     "PRODUCTS_MIME_TYPES_COLON": "產出的 MIME 類型：",
+    "CAPABILITIES_TYPE": "Type:",
     "PROPERTIES": "屬性",
     "NEW_SCANNER": "新增掃描器",
     "SET_AS_DEFAULT": "設為預設",

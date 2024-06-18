@@ -405,6 +405,7 @@
         "REPOSITORY": "仓库",
         "ARTIFACT": "Artifact",
         "SCAN": "扫描",
+        "SBOM": "SBOM",
         "TAG": "Tag",
         "ACCESSORY": "附件",
         "ARTIFACT_ADDITION": "Artifact 额外信息",
@@ -801,6 +802,7 @@
         "LABELS": "标签",
         "ADD_LABEL_TO_IMAGE": "添加标签到此镜像",
         "ADD_LABELS": "添加标签",
+        "STOP": "Stop",
         "RETAG": "拷贝",
         "FILTER_BY_LABEL": "过滤标签",
         "FILTER_ARTIFACT_BY_LABEL": "通过标签过滤Artifact",
@@ -1046,19 +1048,20 @@
             "FOOT_OF": "of"
         },
         "STATE": {
-            "OTHER_STATUS": "Not Generated",
+            "OTHER_STATUS": "No SBOM",
             "QUEUED": "Queued",
             "ERROR": "View Log",
             "SCANNING": "Generating",
-            "STOPPED": "SBOM scan stopped"
+            "STOPPED": "Generation stopped"
         },
         "NO_SBOM": "No SBOM",
         "PACKAGES": "SBOM",
+        "COMPLETED": "Completed",
         "REPORTED_BY": "Reported by {{scanner}}",
-        "GENERATE": "Create SBOM",
+        "GENERATE": "Generate SBOM",
         "DOWNLOAD": "Download SBOM",
         "Details": "SBOM details",
-        "STOP": "Stop SBOM",
+        "STOP": "Stop Generate SBOM",
         "TRIGGER_STOP_SUCCESS": "Trigger stopping SBOM generation successfully"
     },
     "VULNERABILITY": {
@@ -1105,12 +1108,12 @@
         "PLACEHOLDER": "过滤漏洞",
         "PACKAGE": "组件",
         "PACKAGES": "组件",
-        "SCAN_NOW": "扫描",
+        "SCAN_NOW": "Scan vulnerability",
         "SCAN_BY": "使用 {{scanner}} 进行扫描",
         "REPORTED_BY": "结果由 {{scanner}} 提供",
         "NO_SCANNER": "无扫描器",
         "TRIGGER_STOP_SUCCESS": "停止扫描成功",
-        "STOP_NOW": "停止扫描"
+        "STOP_NOW": "Stop Scan Vulnerability"
     },
     "PUSH_IMAGE": {
         "TITLE": "推送命令",
@@ -1498,9 +1501,10 @@
         "NAME_COLON": "Name:",
         "VENDOR_COLON": "Vendor:",
         "VERSION_COLON": "Version:",
-        "CAPABILITIES": "Capabilities",
+        "CAPABILITIES": "Capabilities:",
         "CONSUMES_MIME_TYPES_COLON": "Consumes Mime Types:",
         "PRODUCTS_MIME_TYPES_COLON": "Produces Mime Types:",
+        "CAPABILITIES_TYPE": "Type:",
         "PROPERTIES": "Properties",
         "NEW_SCANNER": "新建扫描器",
         "SET_AS_DEFAULT": "设为默认",

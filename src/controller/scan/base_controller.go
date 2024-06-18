@@ -67,10 +67,11 @@ const (
 	artfiactKey     = "artifact"
 	registrationKey = "registration"
 
-	artifactIDKey  = "artifact_id"
-	artifactTagKey = "artifact_tag"
-	reportUUIDsKey = "report_uuids"
-	robotIDKey     = "robot_id"
+	artifactIDKey       = "artifact_id"
+	artifactTagKey      = "artifact_tag"
+	reportUUIDsKey      = "report_uuids"
+	robotIDKey          = "robot_id"
+	enabledCapabilities = "enabled_capabilities"
 )
 
 // uuidGenerator is a func template which is for generating UUID.
@@ -193,6 +194,18 @@ func (bc *basicController) collectScanningArtifacts(ctx context.Context, r *scan
 			return nil
 		}
 
+		// because there are lots of in-toto sbom artifacts in dockerhub and replicated to Harbor, they are considered as image type
+		// when scanning these type of sbom artifact, the scanner might assume it is image layer with tgz format, and if scanner read the layer with a stream of tgz,
+		// it fail and close the stream abruptly and cause the pannic in the harbor core log
+		// to avoid pannic, skip scan the in-toto sbom artifact sbom artifact
+		unscannable, err := bc.ar.HasUnscannableLayer(ctx, a.Digest)
+		if err != nil {
+			return err
+		}
+		if unscannable {
+			return nil
+		}
+
 		supported := hasCapability(r, a)
 
 		if !supported && a.IsImageIndex() {
@@ -242,23 +255,27 @@ func (bc *basicController) Scan(ctx context.Context, artifact *ar.Artifact, opti
 	if err != nil {
 		return err
 	}
-
-	if !scannable {
-		return errors.BadRequestError(nil).WithMessage("the configured scanner %s does not support scanning artifact with mime type %s", r.Name, artifact.ManifestMediaType)
-	}
-
 	// Parse options
 	opts, err := parseOptions(options...)
 	if err != nil {
 		return errors.Wrap(err, "scan controller: scan")
 	}
 
+	if !scannable {
+		if opts.FromEvent {
+			// skip to return err for event related scan
+			return nil
+		}
+		return errors.BadRequestError(nil).WithMessage("the configured scanner %s does not support scanning artifact with mime type %s", r.Name, artifact.ManifestMediaType)
+	}
+
 	var (
 		errs                []error
 		launchScanJobParams []*launchScanJobParam
 	)
+	handler := sca.GetScanHandler(opts.GetScanType())
 	for _, art := range artifacts {
-		reports, err := bc.makeReportPlaceholder(ctx, r, art)
+		reports, err := handler.MakePlaceHolder(ctx, art, r)
 		if err != nil {
 			if errors.IsConflictErr(err) {
 				errs = append(errs, err)
@@ -309,11 +326,18 @@ func (bc *basicController) Scan(ctx context.Context, artifact *ar.Artifact, opti
 				"id":   r.ID,
 				"name": r.Name,
 			},
+			enabledCapabilities: map[string]interface{}{
+				"type": opts.GetScanType(),
+			},
 		}
 		if op := operator.FromContext(ctx); op != "" {
 			extraAttrs["operator"] = op
 		}
-		executionID, err := bc.execMgr.Create(ctx, job.ImageScanJobVendorType, artifact.ID, task.ExecutionTriggerManual, extraAttrs)
+		vendorType := handler.JobVendorType()
+		// for vulnerability and generate sbom, use different vendor type
+		// because the execution reaper only keep the latest execution for the vendor type IMAGE_SCAN
+		// both vulnerability and sbom need to keep the latest scan execution to get the latest scan status
+		executionID, err := bc.execMgr.Create(ctx, vendorType, artifact.ID, task.ExecutionTriggerManual, extraAttrs)
 		if err != nil {
 			return err
 		}
@@ -325,7 +349,7 @@ func (bc *basicController) Scan(ctx context.Context, artifact *ar.Artifact, opti
 	for _, launchScanJobParam := range launchScanJobParams {
 		launchScanJobParam.ExecutionID = opts.ExecutionID
 
-		if err := bc.launchScanJob(ctx, launchScanJobParam); err != nil {
+		if err := bc.launchScanJob(ctx, launchScanJobParam, opts); err != nil {
 			log.G(ctx).Warningf("scan artifact %s@%s failed, error: %v", artifact.RepositoryName, artifact.Digest, err)
 			errs = append(errs, err)
 		}
@@ -344,7 +368,8 @@ func (bc *basicController) Stop(ctx context.Context, artifact *ar.Artifact, capT
 	if artifact == nil {
 		return errors.New("nil artifact to stop scan")
 	}
-	query := q.New(q.KeyWords{"vendor_type": job.ImageScanJobVendorType, "extra_attrs.artifact.digest": artifact.Digest, "extra_attrs.enabled_capabilities.type": capType})
+	vendorType := sca.GetScanHandler(capType).JobVendorType()
+	query := q.New(q.KeyWords{"vendor_type": vendorType, "extra_attrs.artifact.digest": artifact.Digest, "extra_attrs.enabled_capabilities.type": capType})
 	executions, err := bc.execMgr.List(ctx, query)
 	if err != nil {
 		return err
@@ -545,61 +570,6 @@ func (bc *basicController) startScanAll(ctx context.Context, executionID int64) 
 	return nil
 }
 
-func (bc *basicController) makeReportPlaceholder(ctx context.Context, r *scanner.Registration, art *ar.Artifact) ([]*scan.Report, error) {
-	mimeTypes := r.GetProducesMimeTypes(art.ManifestMediaType)
-
-	oldReports, err := bc.manager.GetBy(bc.cloneCtx(ctx), art.Digest, r.UUID, mimeTypes)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := bc.assembleReports(ctx, oldReports...); err != nil {
-		return nil, err
-	}
-
-	if len(oldReports) > 0 {
-		for _, oldReport := range oldReports {
-			if !job.Status(oldReport.Status).Final() {
-				return nil, errors.ConflictError(nil).WithMessage("a previous scan process is %s", oldReport.Status)
-			}
-		}
-
-		for _, oldReport := range oldReports {
-			if err := bc.manager.Delete(ctx, oldReport.UUID); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	var reports []*scan.Report
-
-	for _, pm := range r.GetProducesMimeTypes(art.ManifestMediaType) {
-		report := &scan.Report{
-			Digest:           art.Digest,
-			RegistrationUUID: r.UUID,
-			MimeType:         pm,
-		}
-
-		create := func(ctx context.Context) error {
-			reportUUID, err := bc.manager.Create(ctx, report)
-			if err != nil {
-				return err
-			}
-			report.UUID = reportUUID
-
-			return nil
-		}
-
-		if err := orm.WithTransaction(create)(orm.SetTransactionOpNameToContext(ctx, "tx-make-report-placeholder")); err != nil {
-			return nil, err
-		}
-
-		reports = append(reports, report)
-	}
-
-	return reports, nil
-}
-
 // GetReport ...
 func (bc *basicController) GetReport(ctx context.Context, artifact *ar.Artifact, mimeTypes []string) ([]*scan.Report, error) {
 	if artifact == nil {
@@ -675,37 +645,9 @@ func (bc *basicController) GetReport(ctx context.Context, artifact *ar.Artifact,
 }
 
 // GetSummary ...
-func (bc *basicController) GetSummary(ctx context.Context, artifact *ar.Artifact, mimeTypes []string) (map[string]interface{}, error) {
-	if artifact == nil {
-		return nil, errors.New("no way to get report summaries for nil artifact")
-	}
-
-	// Get reports first
-	rps, err := bc.GetReport(ctx, artifact, mimeTypes)
-	if err != nil {
-		return nil, err
-	}
-
-	summaries := make(map[string]interface{}, len(rps))
-	for _, rp := range rps {
-		sum, err := report.GenerateSummary(rp)
-		if err != nil {
-			return nil, err
-		}
-
-		if s, ok := summaries[rp.MimeType]; ok {
-			r, err := report.MergeSummary(rp.MimeType, s, sum)
-			if err != nil {
-				return nil, err
-			}
-
-			summaries[rp.MimeType] = r
-		} else {
-			summaries[rp.MimeType] = sum
-		}
-	}
-
-	return summaries, nil
+func (bc *basicController) GetSummary(ctx context.Context, artifact *ar.Artifact, scanType string, mimeTypes []string) (map[string]interface{}, error) {
+	handler := sca.GetScanHandler(scanType)
+	return handler.GetSummary(ctx, artifact, mimeTypes)
 }
 
 // GetScanLog ...
@@ -741,7 +683,7 @@ func (bc *basicController) GetScanLog(ctx context.Context, artifact *ar.Artifact
 		if !scanTaskForArtifacts(t, artifactMap) {
 			return nil, errors.NotFoundError(nil).WithMessage("scan log with uuid: %s not found", uuid)
 		}
-		for _, reportUUID := range getReportUUIDs(t.ExtraAttrs) {
+		for _, reportUUID := range GetReportUUIDs(t.ExtraAttrs) {
 			reportUUIDToTasks[reportUUID] = t
 		}
 	}
@@ -820,14 +762,6 @@ func scanTaskForArtifacts(task *task.Task, artifactMap map[int64]interface{}) bo
 	}
 	_, exist := artifactMap[artifactID]
 	return exist
-}
-
-// DeleteReports ...
-func (bc *basicController) DeleteReports(ctx context.Context, digests ...string) error {
-	if err := bc.manager.DeleteByDigests(ctx, digests...); err != nil {
-		return errors.Wrap(err, "scan controller: delete reports")
-	}
-	return nil
 }
 
 func (bc *basicController) GetVulnerable(ctx context.Context, artifact *ar.Artifact, allowlist allowlist.CVESet, allowlistIsExpired bool) (*Vulnerable, error) {
@@ -955,7 +889,7 @@ func (bc *basicController) makeRobotAccount(ctx context.Context, projectID int64
 }
 
 // launchScanJob launches a job to run scan
-func (bc *basicController) launchScanJob(ctx context.Context, param *launchScanJobParam) error {
+func (bc *basicController) launchScanJob(ctx context.Context, param *launchScanJobParam, opts *Options) error {
 	// don't launch scan job for the artifact which is not supported by the scanner
 	if !hasCapability(param.Registration, param.Artifact) {
 		return nil
@@ -996,6 +930,11 @@ func (bc *basicController) launchScanJob(ctx context.Context, param *launchScanJ
 			MimeType:    param.Artifact.ManifestMediaType,
 			Size:        param.Artifact.Size,
 		},
+		RequestType: []*v1.ScanType{
+			{
+				Type: opts.GetScanType(),
+			},
+		},
 	}
 
 	rJSON, err := param.Registration.ToJSON()
@@ -1026,7 +965,8 @@ func (bc *basicController) launchScanJob(ctx context.Context, param *launchScanJ
 	params[sca.JobParameterRequest] = sJSON
 	params[sca.JobParameterMimes] = mimes
 	params[sca.JobParameterRobot] = robotJSON
-
+	// because there is only one task type implementation
+	// both the vulnerability scan and generate sbom use the same job type for now
 	j := &task.Job{
 		Name: job.ImageScanJobVendorType,
 		Metadata: &job.Metadata{
@@ -1119,7 +1059,7 @@ func (bc *basicController) assembleReports(ctx context.Context, reports ...*scan
 
 	reportUUIDToTasks := map[string]*task.Task{}
 	for _, task := range tasks {
-		for _, reportUUID := range getReportUUIDs(task.ExtraAttrs) {
+		for _, reportUUID := range GetReportUUIDs(task.ExtraAttrs) {
 			reportUUIDToTasks[reportUUID] = task
 		}
 	}
@@ -1190,7 +1130,8 @@ func getArtifactTag(extraAttrs map[string]interface{}) string {
 	return tag
 }
 
-func getReportUUIDs(extraAttrs map[string]interface{}) []string {
+// GetReportUUIDs returns the report UUIDs from the extra attributes
+func GetReportUUIDs(extraAttrs map[string]interface{}) []string {
 	var reportUUIDs []string
 
 	if extraAttrs != nil {

@@ -404,6 +404,7 @@
         "REPOSITORY": "Repository",
         "ARTIFACT": "Artifact",
         "SCAN": "Scan",
+        "SBOM": "SBOM",
         "TAG": "Tag",
         "ACCESSORY": "Accessory",
         "ARTIFACT_ADDITION": "Artifact Addition",
@@ -803,6 +804,7 @@
         "FILTER_BY_LABEL": "Filtrar imagens por marcadores",
         "FILTER_ARTIFACT_BY_LABEL": "Filtrar por marcador",
         "ADD_LABELS": "Adicionar Marcadores",
+        "STOP": "Stop",
         "RETAG": "Copiar",
         "ACTION": "AÇÃO",
         "DEPLOY": "IMPLANTAR",
@@ -1045,19 +1047,20 @@
             "FOOT_OF": "of"
         },
         "STATE": {
-            "OTHER_STATUS": "Not Generated",
+            "OTHER_STATUS": "No SBOM",
             "QUEUED": "Queued",
             "ERROR": "View Log",
             "SCANNING": "Generating",
-            "STOPPED": "SBOM scan stopped"
+            "STOPPED": "Generation stopped"
         },
         "NO_SBOM": "No SBOM",
         "PACKAGES": "SBOM",
+        "COMPLETED": "Completed",
         "REPORTED_BY": "Reported by {{scanner}}",
-        "GENERATE": "Create SBOM",
+        "GENERATE": "Generate SBOM",
         "DOWNLOAD": "Download SBOM",
         "Details": "SBOM details",
-        "STOP": "Stop SBOM",
+        "STOP": "Stop Generate SBOM",
         "TRIGGER_STOP_SUCCESS": "Trigger stopping SBOM generation successfully"
     },
     "VULNERABILITY": {
@@ -1104,12 +1107,12 @@
         "PLACEHOLDER": "Filtrar",
         "PACKAGE": "pacote",
         "PACKAGES": "pacotes",
-        "SCAN_NOW": "Examinar",
+        "SCAN_NOW": "Scan vulnerability",
         "SCAN_BY": "EXAMINAR COM {{scanner}}",
         "REPORTED_BY": "Encontrado com {{scanner}}",
         "NO_SCANNER": "NENHUM",
         "TRIGGER_STOP_SUCCESS": "Exame foi interrompido",
-        "STOP_NOW": "Interromper"
+        "STOP_NOW": "Stop Scan Vulnerability"
     },
     "PUSH_IMAGE": {
         "TITLE": "Comando Push",
@@ -1499,9 +1502,10 @@
         "NAME_COLON": "Nome:",
         "VENDOR_COLON": "Fornecedor:",
         "VERSION_COLON": "Versão:",
-        "CAPABILITIES": "Habilidades",
+        "CAPABILITIES": "Habilidades:",
         "CONSUMES_MIME_TYPES_COLON": "Consome estes Mime Types:",
         "PRODUCTS_MIME_TYPES_COLON": "Produz estes Mime Types:",
+        "CAPABILITIES_TYPE": "Type:",
         "PROPERTIES": "Propriedades",
         "NEW_SCANNER": "NOVO EXAMINADOR",
         "SET_AS_DEFAULT": "DEFINIR COMO PADRÃO",

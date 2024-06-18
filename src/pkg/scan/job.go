@@ -16,7 +16,6 @@ package scan
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -35,7 +34,6 @@ import (
 	"github.com/goharbor/harbor/src/lib/config"
 	"github.com/goharbor/harbor/src/lib/errors"
 	"github.com/goharbor/harbor/src/pkg/robot/model"
-	"github.com/goharbor/harbor/src/pkg/scan/dao/scan"
 	"github.com/goharbor/harbor/src/pkg/scan/dao/scanner"
 	"github.com/goharbor/harbor/src/pkg/scan/report"
 	v1 "github.com/goharbor/harbor/src/pkg/scan/rest/v1"
@@ -242,7 +240,13 @@ func (j *Job) Run(ctx job.Context, params job.Parameters) error {
 					}
 
 					myLogger.Debugf("check scan report for mime %s at %s", m, t.Format("2006/01/02 15:04:05"))
-					rawReport, err := fetchScanReportFromScanner(client, resp.ID, m)
+
+					reportURLParameter, err := handler.URLParameter(req)
+					if err != nil {
+						errs[i] = errors.Wrap(err, "scan job: get report url")
+						return
+					}
+					rawReport, err := fetchScanReportFromScanner(client, resp.ID, m, reportURLParameter)
 					if err != nil {
 						// Not ready yet
 						if notReadyErr, ok := err.(*v1.ReportNotReadyError); ok {
@@ -292,7 +296,7 @@ func (j *Job) Run(ctx job.Context, params job.Parameters) error {
 	}
 
 	for i, mimeType := range mimeTypes {
-		rp, err := getReportPlaceholder(ctx.SystemContext(), req.Artifact.Digest, r.UUID, mimeType, myLogger)
+		rp, err := handler.GetPlaceHolder(ctx.SystemContext(), req.Artifact.Repository, req.Artifact.Digest, r.UUID, mimeType)
 		if err != nil {
 			return err
 		}
@@ -308,37 +312,23 @@ func (j *Job) Run(ctx job.Context, params job.Parameters) error {
 		// this is required since the top level layers relay on the vuln.Report struct that
 		// contains additional metadata within the report which if stored in the new columns within the scan_report table
 		// would be redundant
-		if err := report.Mgr.UpdateReportData(ctx.SystemContext(), rp.UUID, reportData); err != nil {
+		if err := handler.Update(ctx.SystemContext(), rp.UUID, reportData); err != nil {
 			myLogger.Errorf("Failed to update report data for report %s, error %v", rp.UUID, err)
 			return err
 		}
-
 		myLogger.Debugf("Converted report ID %s to the new V2 schema", rp.UUID)
 	}
 
 	return nil
 }
 
-func getReportPlaceholder(ctx context.Context, digest string, reportUUID string, mimeType string, logger logger.Interface) (*scan.Report, error) {
-	reports, err := report.Mgr.GetBy(ctx, digest, reportUUID, []string{mimeType})
-	if err != nil {
-		logger.Error("Failed to get report for artifact %s of mimetype %s, error %v", digest, mimeType, err)
-		return nil, err
-	}
-	if len(reports) == 0 {
-		logger.Errorf("No report found for artifact %s of mimetype %s, error %v", digest, mimeType, err)
-		return nil, errors.NotFoundError(nil).WithMessage("no report found to update data")
-	}
-	return reports[0], nil
-}
-
-func fetchScanReportFromScanner(client v1.Client, requestID string, m string) (rawReport string, err error) {
-	rawReport, err = client.GetScanReport(requestID, m)
+func fetchScanReportFromScanner(client v1.Client, requestID string, mimType string, urlParameter string) (rawReport string, err error) {
+	rawReport, err = client.GetScanReport(requestID, mimType, urlParameter)
 	if err != nil {
 		return "", err
 	}
 	// Make sure the data is aligned with the v1 spec.
-	if _, err = report.ResolveData(m, []byte(rawReport)); err != nil {
+	if _, err = report.ResolveData(mimType, []byte(rawReport)); err != nil {
 		return "", err
 	}
 	return rawReport, nil
@@ -367,7 +357,20 @@ func ExtractScanReq(params job.Parameters) (*v1.ScanRequest, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-
+	reqType := v1.ScanTypeVulnerability
+	// attach the request with ProducesMimeTypes and Parameters
+	if len(req.RequestType) > 0 {
+		// current only support requestType with one element for each request
+		if len(req.RequestType[0].Type) > 0 {
+			reqType = req.RequestType[0].Type
+		}
+		handler := GetScanHandler(reqType)
+		if handler == nil {
+			return nil, errors.Errorf("failed to get scan handler, request type %v", reqType)
+		}
+		req.RequestType[0].ProducesMimeTypes = handler.RequestProducesMineTypes()
+		req.RequestType[0].Parameters = handler.RequestParameters()
+	}
 	return req, nil
 }
 
@@ -400,6 +403,7 @@ func removeScanAuthInfo(sr *v1.ScanRequest) string {
 			URL:           sr.Registry.URL,
 			Authorization: "[HIDDEN]",
 		},
+		RequestType: sr.RequestType,
 	}
 
 	str, err := req.ToJSON()

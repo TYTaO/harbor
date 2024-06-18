@@ -27,11 +27,17 @@ import { ArtifactModule } from '../../../artifact.module';
 import {
     SBOM_SCAN_STATUS,
     VULNERABILITY_SCAN_STATUS,
-} from 'src/app/shared/units/utils';
+} from '../../../../../../../shared/units/utils';
+import { Scanner } from '../../../../../../left-side-nav/interrogation-services/scanner/scanner';
 
 describe('ArtifactListTabComponent', () => {
     let comp: ArtifactListTabComponent;
     let fixture: ComponentFixture<ArtifactListTabComponent>;
+    const mockScanner = {
+        name: 'Trivy',
+        vendor: 'vm',
+        version: 'v1.2',
+    };
     const mockActivatedRoute = {
         snapshot: {
             params: {
@@ -273,6 +279,9 @@ describe('ArtifactListTabComponent', () => {
         },
         hasScanImagePermission(): boolean {
             return true;
+        },
+        getProjectScanner(): Scanner {
+            return mockScanner;
         },
         init() {},
     };

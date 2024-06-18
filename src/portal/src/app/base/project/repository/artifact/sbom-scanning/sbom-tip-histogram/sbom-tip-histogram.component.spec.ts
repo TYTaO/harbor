@@ -74,8 +74,7 @@ describe('SbomTipHistogramComponent', () => {
     it('Test SbomTipHistogramComponent basic functions', () => {
         fixture.whenStable().then(() => {
             expect(component).toBeTruthy();
-            expect(component.isLimitedSuccess()).toBeFalsy();
-            expect(component.noSbom).toBeTruthy();
+            expect(component.showNoSbom()).toBeTruthy();
             expect(component.isThemeLight()).toBeFalsy();
             expect(component.duration()).toBe('0');
             expect(component.completePercent).toBe('0%');

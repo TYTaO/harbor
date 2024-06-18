@@ -10,35 +10,36 @@ import { SbomTipHistogramComponent } from './sbom-tip-histogram/sbom-tip-histogr
 import { SBOMOverview } from './sbom-overview';
 import { of, timer } from 'rxjs';
 import { ArtifactService, ScanService } from 'ng-swagger-gen/services';
-import { Artifact } from 'ng-swagger-gen/models';
+import { AccessoryType } from '../artifact';
 
 describe('ResultSbomComponent (inline template)', () => {
     let component: ResultSbomComponent;
     let fixture: ComponentFixture<ResultSbomComponent>;
+    const mockedSbomDigest =
+        'sha256:052240e8190b7057439d2bee1dffb9b37c8800e5c1af349f667635ae1debf8f3';
+    const mockScanner = {
+        name: 'Trivy',
+        vendor: 'vm',
+        version: 'v1.2',
+    };
     let mockData: SBOMOverview = {
         scan_status: SBOM_SCAN_STATUS.SUCCESS,
         end_time: new Date().toUTCString(),
     };
-    const mockedSbomDigest =
-        'sha256:052240e8190b7057439d2bee1dffb9b37c8800e5c1af349f667635ae1debf8f3';
     const mockedSbomOverview = {
         report_id: '12345',
         scan_status: 'Error',
-        scanner: {
-            name: 'Trivy',
-            vendor: 'vm',
-            version: 'v1.2',
-        },
     };
     const mockedCloneSbomOverview = {
         report_id: '12346',
         scan_status: 'Pending',
-        scanner: {
-            name: 'Trivy',
-            vendor: 'vm',
-            version: 'v1.2',
-        },
     };
+    const mockedAccessories = [
+        {
+            type: AccessoryType.SBOM,
+            digest: mockedSbomDigest,
+        },
+    ];
     const FakedScanService = {
         scanArtifact: () => of({}),
         stopScanArtifact: () => of({}),
@@ -46,7 +47,7 @@ describe('ResultSbomComponent (inline template)', () => {
     const FakedArtifactService = {
         getArtifact: () =>
             of({
-                accessories: null,
+                accessories: mockedAccessories,
                 addition_links: {
                     build_history: {
                         absolute: false,
@@ -88,6 +89,7 @@ describe('ResultSbomComponent (inline template)', () => {
                         'sha256:8cca43ea666e0e7990c2433e3b185313e6ba303cc7a3124bb767823c79fb74a6',
                     scan_status: 'Success',
                     start_time: '2024-04-02T01:50:57.176Z',
+                    scanner: mockScanner,
                 },
                 size: 3957,
                 tags: null,
@@ -120,9 +122,11 @@ describe('ResultSbomComponent (inline template)', () => {
         fixture = TestBed.createComponent(ResultSbomComponent);
         component = fixture.componentInstance;
         component.repoName = 'mockRepo';
+        component.inputScanner = mockScanner;
         component.artifactDigest = mockedSbomDigest;
         component.sbomDigest = mockedSbomDigest;
         component.sbomOverview = mockData;
+        component.accessories = mockedAccessories;
         fixture.detectChanges();
     });
 
@@ -169,20 +173,31 @@ describe('ResultSbomComponent (inline template)', () => {
     });
 
     it('should show summary bar chart if status is COMPLETED', () => {
+        component.sbomOverview = { ...mockedSbomOverview };
         component.sbomOverview.scan_status = SBOM_SCAN_STATUS.SUCCESS;
+        component.sbomOverview.sbom_digest = mockedSbomDigest;
+        component.artifactDigest = mockedSbomDigest;
+        component.sbomDigest = mockedSbomDigest;
+        component.accessories = mockedAccessories;
         fixture.detectChanges();
-
         fixture.whenStable().then(() => {
-            fixture.detectChanges();
-            let el: HTMLElement = fixture.nativeElement.querySelector('a');
+            const el: HTMLElement =
+                fixture.nativeElement.querySelector('.tip-block');
             expect(el).not.toBeNull();
+            const textContent = el?.textContent;
+            expect(component.sbomOverview.scan_status).toBe(
+                SBOM_SCAN_STATUS.SUCCESS
+            );
+            expect(textContent?.trim()).toBe('SBOM.Details');
         });
     });
     it('Test ResultSbomComponent getScanner', () => {
         fixture.detectChanges();
+        component.inputScanner = undefined;
         expect(component.getScanner()).toBeUndefined();
+        component.inputScanner = mockScanner;
         component.sbomOverview = mockedSbomOverview;
-        expect(component.getScanner()).toBe(mockedSbomOverview.scanner);
+        expect(component.getScanner()).toBe(mockScanner);
         component.projectName = 'test';
         component.repoName = 'ui';
         component.artifactDigest = 'dg';
@@ -239,7 +254,9 @@ describe('ResultSbomComponent (inline template)', () => {
         fixture.detectChanges();
         fixture.whenStable().then(() => {
             fixture.detectChanges();
-            expect(component.stateCheckTimer).toBeUndefined();
+            expect(component.sbomOverview.scan_status).toBe(
+                SBOM_SCAN_STATUS.SUCCESS
+            );
         });
     });
 });

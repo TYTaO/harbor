@@ -1,7 +1,7 @@
 import { Component, Input } from '@angular/core';
 import { TranslateService } from '@ngx-translate/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ScannerVo, SbomSummary } from '../../../../../../shared/services';
+import { SbomSummary } from '../../../../../../shared/services';
 import { SBOM_SCAN_STATUS } from '../../../../../../shared/units/utils';
 import {
     UN_LOGGED_PARAM,
@@ -9,6 +9,9 @@ import {
 } from '../../../../../../account/sign-in/sign-in.service';
 import { HAS_STYLE_MODE, StyleMode } from '../../../../../../services/theme';
 import { ScanTypes } from '../../../../../../shared/entities/shared.const';
+import { Scanner } from '../../../../../left-side-nav/interrogation-services/scanner/scanner';
+import { Accessory } from 'ng-swagger-gen/models';
+import { AccessoryType } from '../../artifact';
 
 const MIN = 60;
 const MIN_STR = 'min ';
@@ -21,12 +24,13 @@ const SUCCESS_PCT: number = 100;
     styleUrls: ['./sbom-tip-histogram.component.scss'],
 })
 export class SbomTipHistogramComponent {
-    @Input() scanner: ScannerVo;
+    @Input() scanner: Scanner;
     @Input() sbomSummary: SbomSummary = {
         scan_status: SBOM_SCAN_STATUS.NOT_GENERATED_SBOM,
     };
     @Input() artifactDigest: string = '';
     @Input() sbomDigest: string = '';
+    @Input() accessories: Accessory[] = [];
     constructor(
         private translate: TranslateService,
         private activatedRoute: ActivatedRoute,
@@ -49,25 +53,41 @@ export class SbomTipHistogramComponent {
         return '0';
     }
 
+    public getSbomAccessories(): Accessory[] {
+        return (
+            this.accessories?.filter(
+                accessory => accessory.type === AccessoryType.SBOM
+            ) ?? []
+        );
+    }
+
     public get completePercent(): string {
         return this.sbomSummary.scan_status === SBOM_SCAN_STATUS.SUCCESS
             ? `100%`
             : '0%';
     }
-    isLimitedSuccess(): boolean {
-        return (
-            this.sbomSummary && this.sbomSummary.complete_percent < SUCCESS_PCT
-        );
-    }
+
     get completeTimestamp(): Date {
         return this.sbomSummary && this.sbomSummary.end_time
             ? this.sbomSummary.end_time
             : new Date();
     }
 
-    get noSbom(): boolean {
+    showSbomDetailLink(): boolean {
+        return this.sbomDigest && this.getSbomAccessories().length > 0;
+    }
+
+    showNoSbom(): boolean {
+        return !this.sbomDigest || this.getSbomAccessories().length === 0;
+    }
+
+    showTooltip() {
         return (
-            this.sbomSummary.scan_status === SBOM_SCAN_STATUS.NOT_GENERATED_SBOM
+            !this.sbomSummary ||
+            !(
+                this.sbomSummary &&
+                this.sbomSummary.scan_status !== SBOM_SCAN_STATUS.SUCCESS
+            )
         );
     }
 

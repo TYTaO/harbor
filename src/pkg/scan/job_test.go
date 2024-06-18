@@ -161,26 +161,6 @@ func (suite *JobTestSuite) TestJob() {
 	require.NoError(suite.T(), err)
 }
 
-func (suite *JobTestSuite) TestgetReportPlaceholder() {
-	dgst := "sha256:mydigest"
-	uuid := `7f20b1b9-6117-4a2e-820b-e4cc0401f15e`
-	scannerUUID := `7f20b1b9-6117-4a2e-820b-e4cc0401f15f`
-	rpt := &scan.Report{
-		UUID:             uuid,
-		RegistrationUUID: scannerUUID,
-		Digest:           dgst,
-		MimeType:         v1.MimeTypeDockerArtifact,
-	}
-	ctx := suite.Context()
-	rptID, err := report.Mgr.Create(ctx, rpt)
-	suite.reportIDs = append(suite.reportIDs, rptID)
-	require.NoError(suite.T(), err)
-	jobLogger := &mockjobservice.MockJobLogger{}
-	report, err := getReportPlaceholder(ctx, dgst, scannerUUID, v1.MimeTypeDockerArtifact, jobLogger)
-	require.NoError(suite.T(), err)
-	require.NotNil(suite.T(), report)
-}
-
 func (suite *JobTestSuite) TestfetchScanReportFromScanner() {
 	vulnRpt := &vuln.Report{
 		GeneratedAt: time.Now().UTC().String(),
@@ -211,8 +191,9 @@ func (suite *JobTestSuite) TestfetchScanReportFromScanner() {
 	suite.reportIDs = append(suite.reportIDs, rptID)
 	require.NoError(suite.T(), err)
 	client := &v1testing.Client{}
-	client.On("GetScanReport", mock.Anything, v1.MimeTypeGenericVulnerabilityReport).Return(rawContent, nil)
-	rawRept, err := fetchScanReportFromScanner(client, "abc", v1.MimeTypeGenericVulnerabilityReport)
+	client.On("GetScanReport", mock.Anything, v1.MimeTypeGenericVulnerabilityReport, mock.Anything).Return(rawContent, nil)
+	parameters := "sbom_media_type=application/spdx+json"
+	rawRept, err := fetchScanReportFromScanner(client, "abc", v1.MimeTypeGenericVulnerabilityReport, parameters)
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), rawContent, rawRept)
 }
